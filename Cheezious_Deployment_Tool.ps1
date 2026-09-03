@@ -1,4 +1,4 @@
-﻿[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 Set-ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
 
 Clear-Host
@@ -8,6 +8,7 @@ Clear-Host
 $Hash_RSSU  = "75C47A15DEC794F4571A5B08E1676830CD19169428A666A274B697B03B256D83"
 $Hash_POS   = "48CF3EEB9D24E8326E30144BF4E9DDC1303C3255034DBFFE28B8A7BC876E5D74"
 $Hash_Kiosk = "48CF3EEB9D24E8326E30144BF4E9DDC1303C3255034DBFFE28B8A7BC876E5D74"
+$Hash_SouthKiosk = "48CF3EEB9D24E8326E30144BF4E9DDC1303C3255034DBFFE28B8A7BC876E5D74"
 
 function Test-OptionPassword ($TargetHash, $ModuleName) {
     $MaxAttempts = 3
@@ -138,12 +139,16 @@ Write-Host "------------------------------------ [ SELECT AN OPTION ] ----------
 
 Write-Host "+---------------------------------+ +---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
 Write-Host "| [1] RSSU INSTALLATION           | | [2] POS INSTALLATION            | | [3] KIOSK INSTALLATION          |" -ForegroundColor White
-Write-Host "|     Install / Configure Server  | |     Install / Configure POS     | |     Install / Configure Kiosk |" -ForegroundColor Gray
+Write-Host "|     Install / Configure Server  | |     Install / Configure POS     | |     Install / Configure Kiosk   |" -ForegroundColor Gray
 Write-Host "+---------------------------------+ +---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
 Write-Host "+---------------------------------+ +---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
-Write-Host "| [4] SERVER ACTIVATION           | | [5] WINDOWS + EXCEL ACTIVATION  | | [6] EXIT                        |" -ForegroundColor White
-Write-Host "|     Activate Server Edition     | |     Activate Win & Office       | |     Close Application           |" -ForegroundColor Gray
+Write-Host "| [4] SOUTH KIOSK                 | | [5] SERVER ACTIVATION           | | [6] WINDOWS + EXCEL ACTIVATION  |" -ForegroundColor White
+Write-Host "|     GOFRUGAL / Mahir v3.3       | |     Activate Server Edition     | |     Activate Win & Office       |" -ForegroundColor Gray
 Write-Host "+---------------------------------+ +---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
+Write-Host "+---------------------------------+" -ForegroundColor DarkGray
+Write-Host "| [7] EXIT                        |" -ForegroundColor White
+Write-Host "|     Close Application           |" -ForegroundColor Gray
+Write-Host "+---------------------------------+" -ForegroundColor DarkGray
 
 Write-Host ""
 Write-Host "----------------------------------- [ SYSTEM INFORMATION ] -----------------------------------------" -ForegroundColor DarkYellow
@@ -157,7 +162,7 @@ Write-Host ("| Date:       {0,-38} | Status:    {1,-38} |" -f $SysDate, "Online"
 Write-Host "+---------------------------------------------------------------------------------------------------+" -ForegroundColor DarkGray
 
 Write-Host ""
-Write-Host " TIP: Use the number keys (1-6) to select an option and press Enter." -ForegroundColor Yellow
+Write-Host " TIP: Use the number keys (1-7) to select an option and press Enter." -ForegroundColor Yellow
 Write-Host ""
 
 $Selection = Read-Host " PS C:\Cheezious_Installer>"
@@ -207,6 +212,10 @@ if ($Selection -eq '1') {
         Invoke-DecryptedInstaller -Cipher "Z0GYPey/P3aHCYuhgmkkszmkLk5LkEs7kzdF8l7RJYe2fw9L9ikknzYIFX5UBq3HnjCLyNTPAXAY7ySJDbgXxuEga6Sv8qpIwP3pcWK3lPfgo3wFDuzFt3NoIEJtMlql6wrssq2GFFlzChtWyVD++q+AoHSyz6VFUXRSsMhAmWiaQvSN2kSJeRAYeYH9pNYXlFPbBHOLOnKF4TXHoIT/6osersjgq0XNiZn13Q3wBaPTg2XFEKUkKUleEDZySCVW961wFZ+BDBqpX5vwAcQM1A==" -IV "5itQgNn+Yx3cXD87pwlsOg==" -Label "Kiosk Installation"
     }
 } elseif ($Selection -eq '4') {
+    if (Test-OptionPassword -TargetHash $Hash_SouthKiosk -ModuleName "Cheezious-South Kiosk v3.3") {
+        Invoke-DecryptedInstaller -Cipher "15u4fZbLzNL/UfNGCvzMmahoW/qoqeao/Kfu9EHABbhRgeebsFpJCFntX1TsGZcGoNxjbQx9SD5jyVjsScP5unC8ewsuXqVAChaIQ68jxg8EUSWdlfX6oNT0Xa7weJBhC0AFu0n4H6qJLPFwt2IcdUtM5xhl/WRXCTV/+P9R4ouXR1XJJ2hEeaRnybSE5nOBR6a/3Ga1/uPhhqJfbX8Rat18srh2afPf84x8H9nRWCV5ne1TM87DqVwcDzBIaIWAcHftM42lGkfrjrRX1YfTyPdxc8WeTnbH2JBjyA6xVYuJvDpP0QrSU7MaG0WgMrwx" -IV "9g4fXaREmiiJrrEuUx84Dw==" -Label "Cheezious-South GOFRUGAL/Mahir Kiosk v3.3"
+    }
+} elseif ($Selection -eq '5') {
     Write-Host "
   [+] Running Server Windows Activation in background..." -ForegroundColor Green
     Start-Job -ScriptBlock {
@@ -215,16 +224,20 @@ if ($Selection -eq '1') {
         DISM /online /Set-Edition:ServerStandard /ProductKey:VDYBN-27WPP-V4HQT-9VMD4-VMK7H /AcceptEula /NoRestart | Out-Null
     } | Out-Null
     Write-Host "  [+] Server activation job initiated." -ForegroundColor Cyan
-} elseif ($Selection -eq '5') {
+} elseif ($Selection -eq '6') {
     Write-Host "
   [+] Running Windows + Office/Excel Activation in background..." -ForegroundColor Green
     Start-Job -ScriptBlock {
         irm https://get.activated.win | iex
     } | Out-Null
     Write-Host "  [+] Activation script launched." -ForegroundColor Cyan
-} else {
+} elseif ($Selection -eq '7') {
     Write-Host "
   Exiting installer." -ForegroundColor Yellow
+    Exit
+} else {
+    Write-Host "
+  Invalid selection. Please choose option 1-7." -ForegroundColor Red
     Exit
 }
 
