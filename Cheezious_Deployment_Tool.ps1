@@ -185,8 +185,7 @@ for ($i = 0; $i -lt $Masked.Length; $i++) {
 function Invoke-DatabaseCleanupSql {
     param([Parameter(Mandatory = $true)][string]$SqlText)
 
-    $Server = Read-Host " SQL Server instance (Enter for localhost; named instance: SERVER\INSTANCE)"
-    if ([string]::IsNullOrWhiteSpace($Server)) { $Server = "localhost" }
+    $Server = "localhost"
     $Database = "RetailChannelDatabase"
     Write-Host " WARNING: This SQL wipes data from tables outside its keep list in ax/crt/dbo/ext/cdx." -ForegroundColor Red
     Write-Host " Target: $Server / $Database. Confirm a current backup exists before proceeding." -ForegroundColor Yellow
@@ -306,7 +305,128 @@ if ($Selection -eq '1') {
     }
 } elseif ($Selection -eq '6') {
     if (Test-OptionPassword -TargetHash $Hash_DatabaseCleanup -ModuleName "Database Cleanup") {
-        Invoke-DecryptedInstaller -Cipher "AiqMz2k+OZhvCupSoYg9FswaoAZTjWJOLziC5F5DhddY3zaCX5J8ArjgcXQ1O6cdjP3Zd9MECOAwJ7Y90W/L3aHQWxcbiz+nVsahT7PPljvBx1fGB2Bhy9rVmVuuVAb7CFnQlhRarE5QhF5LlV7wt8jMUhUhTCUv1r9bXR628Fsah5UJAKpUc66lc60TUcguG6rX73Cq2pfevcw89RWIGQ1f85+XxsKvCcTkDhac7sClJluRDB7OzF+GLKq7U883PcUUEypACEp9BIOavC5xzw==" -IV "/zgeg9HUo1x8dNk3G2PQUw==" -Label "Database Cleanup" -SqlCleanup
+        Write-Host "  [+] Database Cleanup v2: executing embedded SQL (no download)." -ForegroundColor Cyan
+        $CleanupSql = @'
+USE [RetailChannelDatabase];
+GO
+
+-- ================================================================
+-- STEP 0 — BACKUP FIRST (confirm this has been run separately already)
+-- ================================================================
+-- BACKUP DATABASE [RetailChannelDatabase] TO DISK = N'C:\Backups\PreWipe.bak' WITH INIT, COMPRESSION;
+
+-- ================================================================
+-- STEP 1 — Tables to KEEP: store config + tax config/setup
+-- ================================================================
+IF OBJECT_ID('tempdb..#KeepTables') IS NOT NULL DROP TABLE #KeepTables;
+CREATE TABLE #KeepTables (SchemaName SYSNAME, TableName SYSNAME);
+
+INSERT INTO #KeepTables (SchemaName, TableName) VALUES
+('ax','RETAILSTORETABLE'),
+('ax','RETAILSTORETABLE_IN'),
+('ax','RETAILSTORETENDERTYPETABLE'),
+('ax','RETAILSTORETENDERTYPECARDTABLE'),
+('ax','RETAILSTORECASHDECLARATIONTABLE'),
+('ax','RETAILSTOREADDRESSBOOK'),
+('ax','RETAILSTOREHARDWARESTATIONTABLE'),
+('ax','RETAILSTORESAFE'),
+('ax','RETAILSTOREHOURSRANGE'),
+('ax','RETAILSTOREHOURSCHANNEL'),
+('ax','RETAILSTOREHOURSTEMPLATE'),
+('ax','RETAILSTORELOCATORGROUP'),
+('ax','RETAILSTORELOCATORGROUPMEMBER'),
+('ax','RETAILSTORELOCATORGROUPOWNER'),
+('ax','RETAILCHANNELTABLE'),
+('ax','RETAILCHANNELTABLEEXT'),
+('ax','RETAILCHANNELTABLE_IN'),
+('ax','RETAILCHANNELPROFILE'),
+('ax','RETAILCHANNELPROFILEPROPERTY'),
+('ax','RETAILCHANNELPRICEGROUP'),
+('ax','RETAILCHANNELATTRIBUTEGROUP'),
+('ax','RETAILCHANNELREPORT'),
+('ax','RETAILCHANNELCURRENCY'),
+('ax','TAXTABLE'),
+('ax','TAXGROUPDATA'),
+('ax','TAXGROUPHEADING'),
+('ax','TAXONITEM'),
+('ax','TAXENGINESQLDICTIONARY'),
+('ax','TAXATIONCODESETUP_BR'),
+('ax','TAXATIONCODETABLE_BR'),
+('ax','TAXINFORMATIONCUSTTABLE_IN'),
+('ax','TAXINFORMATION_IN'),
+('ax','TAXINFORMATIONLEGALENTITY_IN'),
+('ax','TAXPARAMETERS'),
+('ax','TAXEXEMPTCODETABLE'),
+('ax','TAXREGISTRATIONTYPE'),
+('ax','TAXREGISTRATIONTYPEAPPLICABILITYRULE'),
+('ax','TAXREGISTRATION'),
+('ax','TAXREGISTRATIONLEGISLATIONTYPES'),
+('ax','TAXRATETYPE'),
+('ax','TAXCOLLECTLIMIT'),
+('ax','TAXMEASURETYPE'),
+('ax','TAXMEASURETYPEDETAIL'),
+('ax','TAXDATA'),
+('ax','TAXSOLUTIONSCOPE'),
+('ax','TAXSOLUTIONSCOPESETUP'),
+('ax','TAXSOLUTIONSCOPECHANGEHISTORY'),
+('ax','TAXSOLUTIONINFO'),
+('ax','TAXPERIODHEADER'),
+('ax','TAXCOMPONENTTABLE_IN'),
+('ax','TAXFISCALCLASSIFICATION_BR'),
+('ax','TAXBURDEN_BR'),
+('ax','TAXBENEFITCODESETUPHEADING_BR'),
+('ax','TAXBENEFITCODESETUPDATA_BR'),
+('ax','TAXBENEFITCODETAXATIONCODES_BR'),
+('ax','TAXPOVERTYFUNDSETUPHEADING_BR'),
+('ax','TAXPOVERTYFUNDSETUPDATA_BR'),
+('ax','TAXSUBSTITUTIONCODETABLE_BR'),
+('dbo','ItemWisePrinterConfiguration');
+
+-- ================================================================
+-- STEP 2 — Build DELETE script for every table with data, EXCLUDING #KeepTables
+-- ================================================================
+DECLARE @sql NVARCHAR(MAX) = N'';
+
+SELECT @sql += 
+    N'PRINT ''Deleting ' + s.name + '.' + t.name + N''';' + CHAR(13) +
+    N'DELETE FROM ' + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ';' + CHAR(13) + CHAR(13)
+FROM sys.tables t
+JOIN sys.schemas s ON t.schema_id = s.schema_id
+JOIN sys.partitions p ON t.object_id = p.object_id AND p.index_id IN (0,1)
+WHERE p.rows > 0
+  AND s.name IN ('ax','crt','dbo','ext','cdx')
+  AND NOT EXISTS (
+      SELECT 1 FROM #KeepTables k 
+      WHERE k.SchemaName = s.name AND k.TableName = t.name
+  )
+GROUP BY s.name, t.name
+ORDER BY s.name, t.name;
+
+-- ================================================================
+-- STEP 3 — REVIEW (will print to Messages tab)
+-- ================================================================
+PRINT LEN(@sql);
+PRINT @sql;
+
+-- ================================================================
+-- STEP 4 — EXECUTE (this is what actually deletes the data)
+-- ================================================================
+BEGIN TRY
+    EXEC sp_msforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL';
+    EXEC sp_executesql @sql;
+    EXEC sp_msforeachtable 'ALTER TABLE ? WITH NOCHECK CHECK CONSTRAINT ALL';
+    PRINT 'Wipe completed successfully.';
+END TRY
+BEGIN CATCH
+    PRINT 'Error: ' + ERROR_MESSAGE();
+    EXEC sp_msforeachtable 'ALTER TABLE ? WITH NOCHECK CHECK CONSTRAINT ALL';
+END CATCH
+'@
+        try {
+            Invoke-DatabaseCleanupSql -SqlText $CleanupSql
+        } catch {
+            Write-Host "  [CRITICAL ERROR] Database cleanup failed: $($_.Exception.Message)" -ForegroundColor Red
+        }
     }
 } elseif ($Selection -eq '7') {
     Write-Host "
