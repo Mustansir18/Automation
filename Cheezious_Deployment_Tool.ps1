@@ -206,6 +206,31 @@ function Invoke-DatabaseCleanupSql {
         throw "Cleanup SQL differs from the reviewed file. Its error handling must be reviewed before execution."
     }
     $SqlText = [regex]::Replace($SqlText, $CatchPattern, "BEGIN CATCH`r`n    THROW;`r`nEND CATCH")
+    # Replace the undocumented foreach-table helper with explicit, quoted names.
+    $DisableConstraintsSql = @'
+DECLARE @DisableConstraints nvarchar(max);
+SELECT @DisableConstraints = STRING_AGG(
+    CAST(N'ALTER TABLE ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name)
+    + N' NOCHECK CONSTRAINT ALL;' AS nvarchar(max)), CHAR(10))
+FROM sys.tables AS t
+JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+WHERE t.is_ms_shipped = 0;
+IF @DisableConstraints IS NOT NULL EXEC sys.sp_executesql @DisableConstraints;
+'@
+    $EnableConstraintsSql = @'
+DECLARE @EnableConstraints nvarchar(max);
+SELECT @EnableConstraints = STRING_AGG(
+    CAST(N'ALTER TABLE ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name)
+    + N' WITH NOCHECK CHECK CONSTRAINT ALL;' AS nvarchar(max)), CHAR(10))
+FROM sys.tables AS t
+JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+WHERE t.is_ms_shipped = 0;
+IF @EnableConstraints IS NOT NULL EXEC sys.sp_executesql @EnableConstraints;
+'@
+    $SqlText = $SqlText.Replace("EXEC sp_msforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL';", $DisableConstraintsSql)
+    $SqlText = $SqlText.Replace("EXEC sp_msforeachtable 'ALTER TABLE ? WITH NOCHECK CHECK CONSTRAINT ALL';", $EnableConstraintsSql)
+    # Avoid dumping a long, truncated SQL string into the progress display.
+    $SqlText = $SqlText.Replace('PRINT LEN(@sql);', '').Replace('PRINT @sql;', '')
     $Batches = [regex]::Split($SqlText, '(?im)^\s*GO\s*(?:--[^\r\n]*)?\r?$')
     $Builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
     $Builder['Data Source'] = $Server
