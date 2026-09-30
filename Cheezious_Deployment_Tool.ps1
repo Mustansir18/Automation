@@ -263,7 +263,17 @@ function Invoke-DecryptedInstaller ($Cipher, $IV, $Label, [switch]$SqlCleanup) {
         $ScriptText = Invoke-RestMethod -Uri $Url -Method Get -UseBasicParsing
         if ([string]::IsNullOrWhiteSpace($ScriptText)) { throw "Downloaded script was empty." }
         if ($SqlCleanup) {
-            Invoke-DatabaseCleanupSql -SqlText ([string]$ScriptText)
+            $CleanupText = [string]$ScriptText
+            # The blob may contain plain T-SQL or the standalone PowerShell wrapper.
+            # Extract the wrapper's literal SQL without evaluating downloaded PowerShell.
+            $EmbeddedSqlPattern = '(?ms)^\s*\$CleanupSql\s*=\s*@''[ \t]*\r?\n(.*?)^''@[ \t]*\r?$'
+            $EmbeddedSql = [regex]::Match($CleanupText, $EmbeddedSqlPattern)
+            if ($EmbeddedSql.Success) {
+                $CleanupText = $EmbeddedSql.Groups[1].Value
+            } elseif ($CleanupText -notmatch '(?im)^\s*USE\s+\[RetailChannelDatabase\]\s*;') {
+                throw "Downloaded cleanup file must contain plain SQL or the supported embedded SQL wrapper."
+            }
+            Invoke-DatabaseCleanupSql -SqlText $CleanupText
         } else {
             Invoke-Expression $ScriptText
         }
