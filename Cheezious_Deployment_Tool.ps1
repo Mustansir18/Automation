@@ -182,7 +182,68 @@ for ($i = 0; $i -lt $Masked.Length; $i++) {
     $Key[$i] = $Masked[$i] -bxor $Mask[$i % $Mask.Length]
 }
 
-function Invoke-DecryptedInstaller ($Cipher, $IV, $Label) {
+function Invoke-DatabaseCleanupSql {
+    param([Parameter(Mandatory = $true)][string]$SqlText)
+
+    $Server = Read-Host " SQL Server instance (Enter for localhost; named instance: SERVER\INSTANCE)"
+    if ([string]::IsNullOrWhiteSpace($Server)) { $Server = "localhost" }
+    $Database = "RetailChannelDatabase"
+    Write-Host " WARNING: This SQL wipes data from tables outside its keep list in ax/crt/dbo/ext/cdx." -ForegroundColor Red
+    Write-Host " Target: $Server / $Database. Confirm a current backup exists before proceeding." -ForegroundColor Yellow
+    $Confirm = Read-Host " Type WIPE RetailChannelDatabase to confirm the target, backup, and deletion"
+    if ($Confirm -cne "WIPE RetailChannelDatabase") {
+        Write-Host " Cleanup cancelled." -ForegroundColor Yellow
+        return
+    }
+
+    # The supplied SQL catches errors without raising them. Raise the error so
+    # the surrounding transaction can roll back every batch and constraint change.
+    $CatchPattern = '(?is)BEGIN\s+CATCH\s+PRINT\s+''Error:\s*''\s*\+\s*ERROR_MESSAGE\(\);\s*EXEC\s+sp_msforeachtable\s+''ALTER TABLE \? WITH NOCHECK CHECK CONSTRAINT ALL'';\s*END\s+CATCH'
+    if ($SqlText -notmatch $CatchPattern) {
+        throw "Cleanup SQL differs from the reviewed file. Its error handling must be reviewed before execution."
+    }
+    $SqlText = [regex]::Replace($SqlText, $CatchPattern, "BEGIN CATCH`r`n    THROW;`r`nEND CATCH")
+    $Batches = [regex]::Split($SqlText, '(?im)^\s*GO\s*(?:--[^\r\n]*)?\r?$')
+    $Builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+    $Builder['Data Source'] = $Server
+    $Builder['Initial Catalog'] = $Database
+    $Builder['Integrated Security'] = $true
+    $Builder['Connect Timeout'] = 15
+    $Connection = New-Object System.Data.SqlClient.SqlConnection($Builder.ConnectionString)
+    $Connection.add_InfoMessage({ param($sender, $eventArgs) Write-Host $eventArgs.Message })
+    $Transaction = $null
+    try {
+        $Connection.Open()
+        $Transaction = $Connection.BeginTransaction()
+        foreach ($Batch in $Batches) {
+            if ([string]::IsNullOrWhiteSpace($Batch)) { continue }
+            $Command = $Connection.CreateCommand()
+            try {
+                $Command.Transaction = $Transaction
+                $Command.CommandTimeout = 3600
+                $Command.CommandText = $Batch
+                [void]$Command.ExecuteNonQuery()
+            } finally { $Command.Dispose() }
+        }
+        $Transaction.Commit()
+        Write-Host " Database cleanup committed successfully." -ForegroundColor Green
+    } catch {
+        if ($null -ne $Transaction) {
+            try {
+                $Transaction.Rollback()
+                Write-Host " Cleanup failed; the transaction was rolled back." -ForegroundColor Yellow
+            } catch {
+                Write-Host " Rollback could not be confirmed. Check SQL Server before retrying." -ForegroundColor Red
+            }
+        }
+        throw
+    } finally {
+        if ($null -ne $Transaction) { $Transaction.Dispose() }
+        $Connection.Dispose()
+    }
+}
+
+function Invoke-DecryptedInstaller ($Cipher, $IV, $Label, [switch]$SqlCleanup) {
     Write-Host "
   [+] Decrypting and launching $Label..." -ForegroundColor Green
     try {
@@ -197,7 +258,11 @@ function Invoke-DecryptedInstaller ($Cipher, $IV, $Label) {
 
         $ScriptText = Invoke-RestMethod -Uri $Url -Method Get -UseBasicParsing
         if ([string]::IsNullOrWhiteSpace($ScriptText)) { throw "Downloaded script was empty." }
-        Invoke-Expression $ScriptText
+        if ($SqlCleanup) {
+            Invoke-DatabaseCleanupSql -SqlText ([string]$ScriptText)
+        } else {
+            Invoke-Expression $ScriptText
+        }
     } catch {
         Write-Host "
   [CRITICAL ERROR] Execution failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -227,7 +292,7 @@ if ($Selection -eq '1') {
     }
 } elseif ($Selection -eq '6') {
     if (Test-OptionPassword -TargetHash $Hash_DatabaseCleanup -ModuleName "Database Cleanup") {
-        Invoke-DecryptedInstaller -Cipher "AiqMz2k+OZhvCupSoYg9FswaoAZTjWJOLziC5F5DhddY3zaCX5J8ArjgcXQ1O6cdjP3Zd9MECOAwJ7Y90W/L3aHQWxcbiz+nVsahT7PPljvBx1fGB2Bhy9rVmVuuVAb7CFnQlhRarE5QhF5LlV7wt8jMUhUhTCUv1r9bXR628Fsah5UJAKpUc66lc60TUcguG6rX73Cq2pfevcw89RWIGQ1f85+XxsKvCcTkDhac7sClJluRDB7OzF+GLKq7U883PcUUEypACEp9BIOavC5xzw==" -IV "/zgeg9HUo1x8dNk3G2PQUw==" -Label "Database Cleanup"
+        Invoke-DecryptedInstaller -Cipher "AiqMz2k+OZhvCupSoYg9FswaoAZTjWJOLziC5F5DhddY3zaCX5J8ArjgcXQ1O6cdjP3Zd9MECOAwJ7Y90W/L3aHQWxcbiz+nVsahT7PPljvBx1fGB2Bhy9rVmVuuVAb7CFnQlhRarE5QhF5LlV7wt8jMUhUhTCUv1r9bXR628Fsah5UJAKpUc66lc60TUcguG6rX73Cq2pfevcw89RWIGQ1f85+XxsKvCcTkDhac7sClJluRDB7OzF+GLKq7U883PcUUEypACEp9BIOavC5xzw==" -IV "/zgeg9HUo1x8dNk3G2PQUw==" -Label "Database Cleanup" -SqlCleanup
     }
 } elseif ($Selection -eq '7') {
     Write-Host "
