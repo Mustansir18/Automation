@@ -190,8 +190,12 @@ function Invoke-DatabaseCleanupSql {
     $Database = "RetailChannelDatabase"
     Write-Host " WARNING: This SQL wipes data from tables outside its keep list in ax/crt/dbo/ext/cdx." -ForegroundColor Red
     Write-Host " Target: $Server / $Database. Confirm a current backup exists before proceeding." -ForegroundColor Yellow
-    $Confirm = Read-Host " Type WIPE RetailChannelDatabase to confirm the target, backup, and deletion"
-    if ($Confirm -cne "WIPE RetailChannelDatabase") {
+    Write-Host " Type " -NoNewline
+    # Standard Windows PowerShell consoles have no portable bold-text control.
+    Write-Host "WIPE" -ForegroundColor Black -BackgroundColor Yellow -NoNewline
+    Write-Host " to confirm the target, backup, and deletion."
+    $Confirm = Read-Host " Confirmation"
+    if ($Confirm -cne "WIPE") {
         Write-Host " Cleanup cancelled." -ForegroundColor Yellow
         return
     }
