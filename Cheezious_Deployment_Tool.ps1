@@ -212,8 +212,8 @@ function Invoke-DatabaseCleanupSql {
     $Builder['Initial Catalog'] = $Database
     $Builder['Integrated Security'] = $true
     $Builder['Connect Timeout'] = 15
+    $Builder['Asynchronous Processing'] = $true
     $Connection = New-Object System.Data.SqlClient.SqlConnection($Builder.ConnectionString)
-    $Connection.add_InfoMessage({ param($sender, $eventArgs) Write-Host $eventArgs.Message })
     $Transaction = $null
     try {
         $Connection.Open()
@@ -225,10 +225,28 @@ function Invoke-DatabaseCleanupSql {
                 $Command.Transaction = $Transaction
                 $Command.CommandTimeout = 3600
                 $Command.CommandText = $Batch
-                [void]$Command.ExecuteNonQuery()
+                $Timer = [System.Diagnostics.Stopwatch]::StartNew()
+                $Pending = $Command.BeginExecuteNonQuery()
+                $Frames = @('|', '/', '-', '\')
+                $FrameIndex = 0
+                try {
+                    while (-not $Pending.IsCompleted) {
+                        $Elapsed = $Timer.Elapsed.ToString('hh\:mm\:ss')
+                        $Frame = $Frames[$FrameIndex % $Frames.Count]
+                        Write-Progress -Id 6 -Activity "Database cleanup: $Server / $Database" -Status "$Frame SQL is running or waiting on SQL Server | Elapsed: $Elapsed" -CurrentOperation "Executing SQL; waiting for completion" -PercentComplete -1
+                        $FrameIndex++
+                        Start-Sleep -Milliseconds 250
+                    }
+                    [void]$Command.EndExecuteNonQuery($Pending)
+                } finally {
+                    $Timer.Stop()
+                    Write-Progress -Id 6 -Activity "Database cleanup" -Completed
+                }
             } finally { $Command.Dispose() }
         }
+        Write-Progress -Id 6 -Activity "Database cleanup" -Status "Committing transaction..." -PercentComplete -1
         $Transaction.Commit()
+        Write-Progress -Id 6 -Activity "Database cleanup" -Completed
         Write-Host " Database cleanup committed successfully." -ForegroundColor Green
     } catch {
         if ($null -ne $Transaction) {
@@ -241,6 +259,7 @@ function Invoke-DatabaseCleanupSql {
         }
         throw
     } finally {
+        Write-Progress -Id 6 -Activity "Database cleanup" -Completed
         if ($null -ne $Transaction) { $Transaction.Dispose() }
         $Connection.Dispose()
     }
