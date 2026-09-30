@@ -8,6 +8,8 @@ Clear-Host
 $Hash_RSSU  = "75C47A15DEC794F4571A5B08E1676830CD19169428A666A274B697B03B256D83"
 $Hash_POS   = "48CF3EEB9D24E8326E30144BF4E9DDC1303C3255034DBFFE28B8A7BC876E5D74"
 $Hash_Kiosk = "48CF3EEB9D24E8326E30144BF4E9DDC1303C3255034DBFFE28B8A7BC876E5D74"
+$Hash_ISL_RSSU = $Hash_RSSU
+$Hash_DatabaseCleanup = $Hash_RSSU
 $Hash_SouthKiosk = "48CF3EEB9D24E8326E30144BF4E9DDC1303C3255034DBFFE28B8A7BC876E5D74"
 
 function Test-OptionPassword ($TargetHash, $ModuleName) {
@@ -142,11 +144,15 @@ Write-Host "| [1] RSSU INSTALLATION           | | [2] POS INSTALLATION          
 Write-Host "|     Install / Configure Server  | |     Install / Configure POS     | |     Install / Configure Kiosk   |" -ForegroundColor Gray
 Write-Host "+---------------------------------+ +---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
 Write-Host "+---------------------------------+ +---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
-Write-Host "| [4] SOUTH KIOSK                 | | [5] SERVER ACTIVATION           | | [6] WINDOWS + EXCEL ACTIVATION  |" -ForegroundColor White
-Write-Host "|     GOFRUGAL / Mahir v3.3       | |     Activate Server Edition     | |     Activate Win & Office       |" -ForegroundColor Gray
+Write-Host "| [4] SOUTH KIOSK                 | | [5] ISL_RSSU INSTALLATION       | | [6] DATABASE CLEANUP           |" -ForegroundColor White
+Write-Host "|     GOFRUGAL / Mahir v3.3       | |     Install / Configure Server  | |     Run Database Cleanup        |" -ForegroundColor Gray
 Write-Host "+---------------------------------+ +---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
+Write-Host "+---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
+Write-Host "| [7] SERVER ACTIVATION           | | [8] WINDOWS + EXCEL ACTIVATION  |" -ForegroundColor White
+Write-Host "|     Activate Server Edition     | |     Activate Win & Office       |" -ForegroundColor Gray
+Write-Host "+---------------------------------+ +---------------------------------+" -ForegroundColor DarkGray
 Write-Host "+---------------------------------+" -ForegroundColor DarkGray
-Write-Host "| [7] EXIT                        |" -ForegroundColor White
+Write-Host "| [9] EXIT                        |" -ForegroundColor White
 Write-Host "|     Close Application           |" -ForegroundColor Gray
 Write-Host "+---------------------------------+" -ForegroundColor DarkGray
 
@@ -162,7 +168,7 @@ Write-Host ("| Date:       {0,-38} | Status:    {1,-38} |" -f $SysDate, "Online"
 Write-Host "+---------------------------------------------------------------------------------------------------+" -ForegroundColor DarkGray
 
 Write-Host ""
-Write-Host " TIP: Use the number keys (1-7) to select an option and press Enter." -ForegroundColor Yellow
+Write-Host " TIP: Use the number keys (1-9) to select an option and press Enter." -ForegroundColor Yellow
 Write-Host ""
 
 $Selection = Read-Host " PS C:\Cheezious_Installer>"
@@ -216,6 +222,14 @@ if ($Selection -eq '1') {
         Invoke-DecryptedInstaller -Cipher "15u4fZbLzNL/UfNGCvzMmahoW/qoqeao/Kfu9EHABbhRgeebsFpJCFntX1TsGZcGoNxjbQx9SD5jyVjsScP5unC8ewsuXqVAChaIQ68jxg8EUSWdlfX6oNT0Xa7weJBhC0AFu0n4H6qJLPFwt2IcdUtM5xhl/WRXCTV/+P9R4ouXR1XJJ2hEeaRnybSE5nOBR6a/3Ga1/uPhhqJfbX8Rat18srh2afPf84x8H9nRWCV5ne1TM87DqVwcDzBIaIWAcHftM42lGkfrjrRX1YfTyPdxc8WeTnbH2JBjyA6xVYuJvDpP0QrSU7MaG0WgMrwx" -IV "9g4fXaREmiiJrrEuUx84Dw==" -Label "Cheezious-South GOFRUGAL/Mahir Kiosk v3.3"
     }
 } elseif ($Selection -eq '5') {
+    if (Test-OptionPassword -TargetHash $Hash_ISL_RSSU -ModuleName "ISL_RSSU Installation") {
+        Invoke-DecryptedInstaller -Cipher "Duo3dTLgWQhVKjKD0rvNxX79q9tNZqG+KS3W5EDs5p5Y/mlaNQzjSKx1Ptv41+i5cHnxKTlyqIrwuvVlwPG8+OhComKJyNXryaCgFJ1ikOrrU3jmwhdC/qzAbl6pkpNvviWhfL9et+xEEmP1NZ5jLSOT7+q5K2F6QwMn8JGPGF6YPkcweBoBgvqyGg6tvbvVQ161/2wiatK/wRtYGwoLpyNa39kpfR2uPy9/Yx/yILo6mCzppPEy6GwgoAjymhYJZWPqcgB/lZIGVdLTqm0PwZE9bHgX8DsOmr0pf6zMl9s=" -IV "pfkmXhAn06yGVYTFovCKzQ==" -Label "ISL_RSSU Installation"
+    }
+} elseif ($Selection -eq '6') {
+    if (Test-OptionPassword -TargetHash $Hash_DatabaseCleanup -ModuleName "Database Cleanup") {
+        Invoke-DecryptedInstaller -Cipher "AiqMz2k+OZhvCupSoYg9FswaoAZTjWJOLziC5F5DhddY3zaCX5J8ArjgcXQ1O6cdjP3Zd9MECOAwJ7Y90W/L3aHQWxcbiz+nVsahT7PPljvBx1fGB2Bhy9rVmVuuVAb7CFnQlhRarE5QhF5LlV7wt8jMUhUhTCUv1r9bXR628Fsah5UJAKpUc66lc60TUcguG6rX73Cq2pfevcw89RWIGQ1f85+XxsKvCcTkDhac7sClJluRDB7OzF+GLKq7U883PcUUEypACEp9BIOavC5xzw==" -IV "/zgeg9HUo1x8dNk3G2PQUw==" -Label "Database Cleanup"
+    }
+} elseif ($Selection -eq '7') {
     Write-Host "
   [+] Running Server Windows Activation in background..." -ForegroundColor Green
     Start-Job -ScriptBlock {
@@ -224,20 +238,20 @@ if ($Selection -eq '1') {
         DISM /online /Set-Edition:ServerStandard /ProductKey:VDYBN-27WPP-V4HQT-9VMD4-VMK7H /AcceptEula /NoRestart | Out-Null
     } | Out-Null
     Write-Host "  [+] Server activation job initiated." -ForegroundColor Cyan
-} elseif ($Selection -eq '6') {
+} elseif ($Selection -eq '8') {
     Write-Host "
   [+] Running Windows + Office/Excel Activation in background..." -ForegroundColor Green
     Start-Job -ScriptBlock {
         irm https://get.activated.win | iex
     } | Out-Null
     Write-Host "  [+] Activation script launched." -ForegroundColor Cyan
-} elseif ($Selection -eq '7') {
+} elseif ($Selection -eq '9') {
     Write-Host "
   Exiting installer." -ForegroundColor Yellow
     Exit
 } else {
     Write-Host "
-  Invalid selection. Please choose option 1-7." -ForegroundColor Red
+  Invalid selection. Please choose option 1-9." -ForegroundColor Red
     Exit
 }
 
